@@ -3,6 +3,7 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { User, Prisma } from '.prisma/client';
 import { SigninDto } from './dto/signin.dto';
+import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
@@ -32,5 +33,9 @@ export class AuthService {
     return {
       access_token: await this.jwtService.signAsync(payload),
     };
+  }
+
+  async signUp(registerDto: RegisterDto): Promise<User> {
+    return this.usersService.create(registerDto);
   }
 }
