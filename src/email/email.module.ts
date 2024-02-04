@@ -9,12 +9,12 @@ import { join } from 'path';
   imports: [
     MailerModule.forRoot({
       transport: {
-        host: 'mail.jatengdev.com',
-        port: 465,
+        host: process.env.EMAIL_HOST,
+        port: Number(process.env.EMAIL_PORT),
         secure: true,
         auth: {
-          user: 'bayu@jatengdev.com',
-          pass: 'OFNq8]xF[BUF',
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
         },
       },
       defaults: {
