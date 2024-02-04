@@ -7,6 +7,7 @@ import { jwtConstants } from './constants';
 import { UsersService } from 'src/users/users.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { TypedEventEmitter } from 'src/event-emitter/typed-event-emitter.class';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -18,6 +19,6 @@ import { TypedEventEmitter } from 'src/event-emitter/typed-event-emitter.class';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, UsersService, PrismaService, TypedEventEmitter],
+  providers: [AuthService, UsersService, PrismaService, TypedEventEmitter, ConfigService],
 })
 export class AuthModule { }
