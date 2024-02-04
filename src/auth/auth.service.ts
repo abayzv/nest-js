@@ -4,12 +4,14 @@ import { JwtService } from '@nestjs/jwt';
 import { User, Prisma } from '.prisma/client';
 import { SigninDto } from './dto/signin.dto';
 import { RegisterDto } from './dto/register.dto';
+import { TypedEventEmitter } from 'src/event-emitter/typed-event-emitter.class';
 
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
-    private jwtService: JwtService
+    private jwtService: JwtService,
+    private eventEmitter: TypedEventEmitter
   ) { }
 
   async signIn(signInDto: SigninDto): Promise<{ access_token: string }> {
@@ -36,6 +38,8 @@ export class AuthService {
   }
 
   async signUp(registerDto: RegisterDto): Promise<User> {
-    return this.usersService.create(registerDto);
+    const user = await this.usersService.create(registerDto);
+    this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}` });
+    return user;
   }
 }
