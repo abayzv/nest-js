@@ -89,7 +89,7 @@ export class AuthService {
     const user = await this.usersService.findByVerificationToken(token);
 
     if (!user) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Invalid token');
     }
 
     const verifyUser = await this.usersService.verify(user.id, { emailVerified: true, verificationToken: null });
@@ -105,7 +105,7 @@ export class AuthService {
     const user = await this.usersService.findByEmail(email);
 
     if (!user) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Email not registered');
     }
 
     if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
