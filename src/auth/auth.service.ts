@@ -81,20 +81,26 @@ export class AuthService {
     };
   }
 
-  async verifyEmail(token: string): Promise<UserEntity> {
+  async verifyEmail(token: string) {
     if (!token) {
       throw new UnauthorizedException('Invalid token');
     }
 
+    // Find the user by verification token
     const user = await this.usersService.findByVerificationToken(token);
 
+    // If user is not found, throw an error
     if (!user) {
       throw new UnauthorizedException('Invalid token');
     }
 
-    const verifyUser = await this.usersService.verify(user.id, { emailVerified: true, verificationToken: null });
+    // Update the user's emailVerified and verificationToken fields
+    await this.usersService.verify(user.id, { emailVerified: true, verificationToken: null });
 
-    return verifyUser;
+    return {
+      statusCode: 200,
+      message: 'Email successfully verified',
+    }
   }
 
   async resendVerificationEmail(email: string) {
@@ -102,12 +108,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email');
     }
 
+    // Find the user by email
     const user = await this.usersService.findByEmail(email);
 
+    // If user is not found, throw an error
     if (!user) {
       throw new UnauthorizedException('Email not registered');
     }
 
+    // Send verification email
     if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
       await this.sendVerificationEmail(user);
       return {
