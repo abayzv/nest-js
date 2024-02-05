@@ -22,6 +22,14 @@ export class AuthService {
     })
   }
 
+  async sendVerificationEmail(user: UserEntity) {
+    const token = await this.generateToken(36000);
+    await this.usersService.verify(user.id, { verificationToken: token });
+
+    const url = `${this.configService.get('FRONTEND_URL')}/verify-email?token=${token}`;
+    this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}`, url });
+  }
+
   async signIn(signInDto: SigninDto): Promise<{ access_token: string }> {
     const { email, username, password } = signInDto;
 
@@ -44,14 +52,6 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
-    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
-      const token = await this.generateToken(36000);
-      await this.usersService.verify(user.id, { verificationToken: token });
-
-      const url = `${this.configService.get('FRONTEND_URL')}/verify-email?token=${token}`;
-      this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}`, url });
-    }
-
     // return the access token
     const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName, emailVerified: user.emailVerified };
 
@@ -70,12 +70,9 @@ export class AuthService {
     // Create a new user
     const user = await this.usersService.create(registerDto);
 
-    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true') {
-      const token = await this.generateToken(36000);
-      await this.usersService.verify(user.id, { verificationToken: token });
-
-      const url = `${this.configService.get('FRONTEND_URL')}/verify-email?token=${token}`;
-      this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}`, url });
+    // Send verification email
+    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
+      await this.sendVerificationEmail(user);
     }
 
     const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName, emailVerified: user.emailVerified };
@@ -85,6 +82,10 @@ export class AuthService {
   }
 
   async verifyEmail(token: string): Promise<UserEntity> {
+    if (!token) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
     const user = await this.usersService.findByVerificationToken(token);
 
     if (!user) {
@@ -94,5 +95,30 @@ export class AuthService {
     const verifyUser = await this.usersService.verify(user.id, { emailVerified: true, verificationToken: null });
 
     return verifyUser;
+  }
+
+  async resendVerificationEmail(email: string) {
+    if (!email) {
+      throw new UnauthorizedException('Invalid email');
+    }
+
+    const user = await this.usersService.findByEmail(email);
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
+      await this.sendVerificationEmail(user);
+      return {
+        statusCode: 200,
+        message: 'Verification email sent'
+      }
+    } else {
+      return {
+        statusCode: 400,
+        message: 'Email already verified'
+      }
+    }
   }
 }
