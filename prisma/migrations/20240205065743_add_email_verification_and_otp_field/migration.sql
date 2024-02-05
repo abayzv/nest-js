@@ -1,4 +1,4 @@
 -- AlterTable
 ALTER TABLE "User" ADD COLUMN     "emailVerified" BOOLEAN NOT NULL DEFAULT false,
 ADD COLUMN     "otpNumber" INTEGER,
-ADD COLUMN     "verivicationToken" TEXT;
+ADD COLUMN     "verificationToken" TEXT;
