@@ -53,7 +53,7 @@ export class AuthService {
     }
 
     // return the access token
-    const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName };
+    const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName, emailVerified: user.emailVerified };
 
     // Send OTP to user's email
     if (this.configService.get('LOGIN_OTP_ENABLED') === 'true') {
@@ -78,7 +78,7 @@ export class AuthService {
       this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}`, url });
     }
 
-    const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName };
+    const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName, emailVerified: user.emailVerified };
     return {
       accesToken: await this.jwtService.signAsync(payload),
     };
