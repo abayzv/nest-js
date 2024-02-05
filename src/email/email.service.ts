@@ -8,7 +8,7 @@ export class EmailService {
   constructor(private mailerService: MailerService) { }
 
   @OnEvent('user.registered')
-  async welcomeEmail({ email, name }: { email: string, name: string }) {
+  async welcomeEmail({ email, name, url }: { email: string, name: string, url: string }) {
     console.log('Sending welcome email to', email, 'with name', name)
     await this.mailerService.sendMail({
       to: email,
@@ -16,6 +16,7 @@ export class EmailService {
       template: '../../templates/mail/welcome', // The `.ejs` template is used
       context: {
         name: name,
+        url: url
       },
     });
   }

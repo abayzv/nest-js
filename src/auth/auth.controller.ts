@@ -19,4 +19,9 @@ export class AuthController {
   signUp(@Body() registerDto: RegisterDto) {
     return this.authService.signUp(registerDto);
   }
+
+  @Get('verify-email')
+  verifyEmail(@Param('token') token: string) {
+    return this.authService.verifyEmail(token);
+  }
 }

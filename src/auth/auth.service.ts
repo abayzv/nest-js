@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
-import { User, Prisma } from '.prisma/client';
+import { UserEntity } from 'src/users/entities/user.entity';
 import { SigninDto } from './dto/signin.dto';
 import { RegisterDto } from './dto/register.dto';
 import { TypedEventEmitter } from 'src/event-emitter/typed-event-emitter.class';
@@ -16,6 +16,12 @@ export class AuthService {
     private configService: ConfigService,
   ) { }
 
+  generateToken(minutes: number = 5) {
+    return this.jwtService.signAsync({
+      expiredAt: new Date(Date.now() + minutes * 60000).toISOString()
+    })
+  }
+
   async signIn(signInDto: SigninDto): Promise<{ access_token: string }> {
     const { email, username, password } = signInDto;
 
@@ -24,7 +30,7 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
-    let user: User | null = null;
+    let user: UserEntity | null = null;
     if (email) {
       // If email is provided, find the user by email
       user = await this.usersService.findByEmail(email);
@@ -36,6 +42,14 @@ export class AuthService {
     // If password is incorrect, throw an error
     if (user?.password !== password) {
       throw new UnauthorizedException();
+    }
+
+    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
+      const token = await this.generateToken(36000);
+      await this.usersService.verify(user.id, { verificationToken: token });
+
+      const url = `${this.configService.get('FRONTEND_URL')}/verify-email?token=${token}`;
+      this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}`, url });
     }
 
     // return the access token
@@ -52,12 +66,33 @@ export class AuthService {
     };
   }
 
-  async signUp(registerDto: RegisterDto): Promise<User> {
+  async signUp(registerDto: RegisterDto): Promise<{ accesToken: string }> {
     // Create a new user
     const user = await this.usersService.create(registerDto);
 
-    // Send a welcome email
-    this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}` });
-    return user;
+    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true') {
+      const token = await this.generateToken(36000);
+      await this.usersService.verify(user.id, { verificationToken: token });
+
+      const url = `${this.configService.get('FRONTEND_URL')}/verify-email?token=${token}`;
+      this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}`, url });
+    }
+
+    const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName };
+    return {
+      accesToken: await this.jwtService.signAsync(payload),
+    };
+  }
+
+  async verifyEmail(token: string): Promise<UserEntity> {
+    const user = await this.usersService.findByVerificationToken(token);
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    const verifyUser = await this.usersService.verify(user.id, { emailVerified: true, verificationToken: null });
+
+    return verifyUser;
   }
 }
