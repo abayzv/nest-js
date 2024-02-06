@@ -22,6 +22,14 @@ export class AuthService {
     })
   }
 
+  async sendVerificationEmail(user: UserEntity) {
+    const token = await this.generateToken(36000);
+    await this.usersService.verify(user.id, { verificationToken: token });
+
+    const url = `${this.configService.get('FRONTEND_URL')}/verify-email?token=${token}`;
+    this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}`, url });
+  }
+
   async signIn(signInDto: SigninDto): Promise<{ access_token: string }> {
     const { email, username, password } = signInDto;
 
@@ -44,16 +52,8 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
-    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
-      const token = await this.generateToken(36000);
-      await this.usersService.verify(user.id, { verificationToken: token });
-
-      const url = `${this.configService.get('FRONTEND_URL')}/verify-email?token=${token}`;
-      this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}`, url });
-    }
-
     // return the access token
-    const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName };
+    const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName, emailVerified: user.emailVerified };
 
     // Send OTP to user's email
     if (this.configService.get('LOGIN_OTP_ENABLED') === 'true') {
@@ -70,29 +70,64 @@ export class AuthService {
     // Create a new user
     const user = await this.usersService.create(registerDto);
 
-    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true') {
-      const token = await this.generateToken(36000);
-      await this.usersService.verify(user.id, { verificationToken: token });
-
-      const url = `${this.configService.get('FRONTEND_URL')}/verify-email?token=${token}`;
-      this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}`, url });
+    // Send verification email
+    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
+      await this.sendVerificationEmail(user);
     }
 
-    const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName };
+    const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName, emailVerified: user.emailVerified };
     return {
       accesToken: await this.jwtService.signAsync(payload),
     };
   }
 
-  async verifyEmail(token: string): Promise<UserEntity> {
-    const user = await this.usersService.findByVerificationToken(token);
-
-    if (!user) {
-      throw new UnauthorizedException();
+  async verifyEmail(token: string) {
+    if (!token) {
+      throw new UnauthorizedException('Invalid token');
     }
 
-    const verifyUser = await this.usersService.verify(user.id, { emailVerified: true, verificationToken: null });
+    // Find the user by verification token
+    const user = await this.usersService.findByVerificationToken(token);
 
-    return verifyUser;
+    // If user is not found, throw an error
+    if (!user) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    // Update the user's emailVerified and verificationToken fields
+    await this.usersService.verify(user.id, { emailVerified: true, verificationToken: null });
+
+    return {
+      statusCode: 200,
+      message: 'Email successfully verified',
+    }
+  }
+
+  async resendVerificationEmail(email: string) {
+    if (!email) {
+      throw new UnauthorizedException('Invalid email');
+    }
+
+    // Find the user by email
+    const user = await this.usersService.findByEmail(email);
+
+    // If user is not found, throw an error
+    if (!user) {
+      throw new UnauthorizedException('Email not registered');
+    }
+
+    // Send verification email
+    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
+      await this.sendVerificationEmail(user);
+      return {
+        statusCode: 200,
+        message: 'Verification email sent'
+      }
+    } else {
+      return {
+        statusCode: 400,
+        message: 'Email already verified'
+      }
+    }
   }
 }
