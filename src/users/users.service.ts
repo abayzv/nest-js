@@ -58,13 +58,14 @@ export class UsersService {
     return user ? new UserEntity(user) : null;
   }
 
-  verify(id: string, data: { emailVerified?: boolean, verificationToken?: string, otp?: string }) {
-    return this.prisma.user.update({
+  async verify(id: string, data: { emailVerified?: boolean, verificationToken?: string, otpNumber?: number }) {
+    const verify = await this.prisma.user.update({
       where: {
         id: id
       },
       data: data
     });
+    return verify;
   }
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<UserEntity> {

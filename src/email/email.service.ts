@@ -12,7 +12,7 @@ export class EmailService {
     console.log('Sending welcome email to', email, 'with name', name)
     await this.mailerService.sendMail({
       to: email,
-      subject: `Welcome to PT. Mahesa Teknologi | ${name}`,
+      subject: `Verify Email | PT. Mahesa Teknologi | ${name}`,
       template: '../../templates/mail/welcome', // The `.ejs` template is used
       context: {
         name: name,
@@ -40,7 +40,7 @@ export class EmailService {
     console.log('Sending verify email to', email, 'with name', name)
     await this.mailerService.sendMail({
       to: email,
-      subject: `Verify Email | PT. Mahesa Teknologi | ${name}`,
+      subject: `Login Verification`,
       template: '../../templates/mail/verify-email', // The `.ejs` template is used
       context: {
         name: name,
