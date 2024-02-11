@@ -22,12 +22,87 @@ export class AuthService {
     })
   }
 
+  isExpiredToken(token: string) {
+    // check if token is expired
+    const payload = this.jwtService.verify(token);
+    const expiredAt = new Date(payload.expiredAt);
+    return expiredAt < new Date();
+  }
+
   async sendVerificationEmail(user: UserEntity) {
     const token = await this.generateToken(36000);
     await this.usersService.verify(user.id, { verificationToken: token });
 
     const url = `${this.configService.get('FRONTEND_URL')}/verify-email?token=${token}`;
     this.eventEmitter.emit('user.registered', { email: user.email, name: `${user.firstName} ${user.lastName}`, url });
+  }
+
+  async resendVerificationEmail(email: string) {
+    if (!email) {
+      throw new UnauthorizedException('Invalid email');
+    }
+
+    // Find the user by email
+    const user = await this.usersService.findByEmail(email);
+
+    // If user is not found, throw an error
+    if (!user) {
+      throw new UnauthorizedException('Email not registered');
+    }
+
+    // Send verification email
+    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
+      await this.sendVerificationEmail(user);
+      return {
+        statusCode: 200,
+        message: 'Verification email sent'
+      }
+    } else {
+      return {
+        statusCode: 400,
+        message: 'Email already verified'
+      }
+    }
+  }
+
+  async sendOtp(user: UserEntity) {
+    const token = await this.generateToken(5);
+    const generateOtp = Math.floor(100000 + Math.random() * 900000);
+    this.eventEmitter.emit('user.verify-email', { email: user.email, name: `${user.firstName} ${user.lastName}`, otp: String(generateOtp) });
+    this.usersService.verify(user.id, { otpNumber: generateOtp, verificationToken: token });
+
+    return {
+      token
+    }
+  }
+
+  async resendOtp(token: string) {
+    if (!token) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    // Find the user by verification token
+    const user = await this.usersService.findByVerificationToken(token);
+
+    // If user is not found, throw an error
+    if (!user) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    const isExpired = this.isExpiredToken(user.verificationToken);
+    if (!isExpired) return {
+      statusCode: 400,
+      message: 'Please wait for 1 minute before sending another OTP'
+    }
+
+    // Send OTP to user's email
+    const sendOtp = await this.sendOtp(user);
+    return {
+      statusCode: 200,
+      message: 'OTP sent',
+      accessToken: sendOtp.token
+    }
+
   }
 
   async signIn(signInDto: SigninDto): Promise<{ access_token: string }> {
@@ -57,8 +132,27 @@ export class AuthService {
 
     // Send OTP to user's email
     if (this.configService.get('LOGIN_OTP_ENABLED') === 'true') {
-      const generateOtp = Math.floor(100000 + Math.random() * 900000);
-      this.eventEmitter.emit('user.verify-email', { email: user.email, name: `${user.firstName} ${user.lastName}`, otp: String(generateOtp) });
+
+      if (user.verificationToken) {
+        const isExpired = this.isExpiredToken(user.verificationToken);
+        if (isExpired) {
+          const sendOtp = await this.sendOtp(user);
+          return {
+            access_token: sendOtp.token,
+          }
+        } else {
+          return {
+            access_token: user.verificationToken,
+          };
+        }
+      } else {
+        const sendOtp = await this.sendOtp(user);
+
+        return {
+          access_token: sendOtp.token,
+        }
+      }
+
     }
 
     return {
@@ -103,31 +197,38 @@ export class AuthService {
     }
   }
 
-  async resendVerificationEmail(email: string) {
-    if (!email) {
-      throw new UnauthorizedException('Invalid email');
+  async verifyOtp(otp: string, token: string) {
+    if (!otp || !token) {
+      throw new UnauthorizedException('Invalid OTP or token');
     }
 
-    // Find the user by email
-    const user = await this.usersService.findByEmail(email);
+    const isExpired = this.isExpiredToken(token);
+    if (isExpired) {
+      throw new UnauthorizedException('Expired token');
+    }
+
+    // Find the user by verification token
+    const user = await this.usersService.findByVerificationToken(token);
 
     // If user is not found, throw an error
     if (!user) {
-      throw new UnauthorizedException('Email not registered');
+      throw new UnauthorizedException('Invalid token');
     }
 
-    // Send verification email
-    if (this.configService.get("EMAIL_VERIFICATION_ENABLED") === 'true' && !user.emailVerified) {
-      await this.sendVerificationEmail(user);
-      return {
-        statusCode: 200,
-        message: 'Verification email sent'
-      }
-    } else {
-      return {
-        statusCode: 400,
-        message: 'Email already verified'
-      }
+    // If OTP is incorrect, throw an error
+    if (user.otpNumber !== Number(otp)) {
+      throw new UnauthorizedException('Invalid OTP');
+    }
+
+    // Update the user's emailVerified and verificationToken fields
+    await this.usersService.verify(user.id, { emailVerified: true, verificationToken: null, otpNumber: null });
+
+    const payload = { sub: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName, emailVerified: user.emailVerified };
+
+    return {
+      statusCode: 200,
+      message: 'OTP successfully verified',
+      accessToken: await this.jwtService.signAsync(payload),
     }
   }
 }

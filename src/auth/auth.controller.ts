@@ -29,4 +29,14 @@ export class AuthController {
   resendVerificationEmail(@Query('email') email: string) {
     return this.authService.resendVerificationEmail(email);
   }
+
+  @Get('verify-otp')
+  verifyOtp(@Query('otp') otp: string, @Query('token') token: string) {
+    return this.authService.verifyOtp(otp, token);
+  }
+
+  @Get('resend-otp')
+  resendOtp(@Query('token') token: string) {
+    return this.authService.resendOtp(token);
+  }
 }

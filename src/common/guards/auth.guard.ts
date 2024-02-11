@@ -25,11 +25,18 @@ export class AuthGuard implements CanActivate {
             throw new UnauthorizedException('Invalid token');
         }
 
+        const user = jwtService.decode(token);
+
+        if (!user.hasOwnProperty('emailVerified')) {
+            throw new UnauthorizedException('Invalid token');
+        }
+
         // Check if email verification is enabled
         if (process.env.EMAIL_VERIFICATION_ENABLED === 'true') {
-            const { emailVerified } = jwtService.decode(token);
-            if (!emailVerified) throw new UnauthorizedException('Email not verified');
+            if (!user.emailVerified) throw new UnauthorizedException('Email not verified');
         }
+
+        request.user = user;
 
         return true;
     }
